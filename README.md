@@ -10,7 +10,7 @@
   <a href="https://codecov.io/gh/arvkonstantin/herdr-codex-subagents"><img alt="Coverage" src="https://codecov.io/gh/arvkonstantin/herdr-codex-subagents/branch/main/graph/badge.svg"></a>
   <a href="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/codeql.yml/badge.svg"></a>
   <a href="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/dependency-review.yml"><img alt="Dependency review" src="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/dependency-review.yml/badge.svg"></a>
-  <a href="https://securityscorecards.dev/viewer/?uri=github.com/arvkonstantin/herdr-codex-subagents"><img alt="OpenSSF Scorecard" src="https://api.securityscorecards.dev/projects/github.com/arvkonstantin/herdr-codex-subagents/badge"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/arvkonstantin/herdr-codex-subagents"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/arvkonstantin/herdr-codex-subagents/badge"></a>
   <a href="https://github.com/arvkonstantin/herdr-codex-subagents/releases"><img alt="Release" src="https://img.shields.io/github/v/release/arvkonstantin/herdr-codex-subagents?display_name=tag&sort=semver"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/arvkonstantin/herdr-codex-subagents"></a>
 </p>
