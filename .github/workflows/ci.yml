@@ -13,6 +13,9 @@ jobs:
   quality:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -42,8 +45,8 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+          use_oidc: true
 
   plugin:
     name: Plugin structure
