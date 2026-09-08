@@ -1,0 +1,53 @@
+{
+  "description": "Mirror Codex subagent lifecycles into disposable Herdr panes.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/herdr_subagent_panes.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Cleaning stale Herdr subagent panes"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/herdr_subagent_panes.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Closing Herdr subagent panes"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/herdr_subagent_panes.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Opening a Herdr subagent pane"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/herdr_subagent_panes.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Closing the Herdr subagent pane"
+          }
+        ]
+      }
+    ]
+  }
+}

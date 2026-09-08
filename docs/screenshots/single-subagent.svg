@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 720" role="img" aria-labelledby="title desc">
+  <title id="title">Single Codex subagent in Herdr</title>
+  <desc id="desc">A dark Herdr window showing a parent Codex pane and one read-only subagent viewer</desc>
+  <defs>
+    <linearGradient id="window" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111827"/><stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-opacity=".35"/></filter>
+  </defs>
+  <rect width="1400" height="720" fill="#070b15"/>
+  <circle cx="1250" cy="40" r="280" fill="#4f46e5" opacity=".13"/>
+  <circle cx="140" cy="690" r="280" fill="#06b6d4" opacity=".09"/>
+  <g filter="url(#shadow)">
+    <rect x="70" y="54" width="1260" height="612" rx="18" fill="url(#window)" stroke="#334155"/>
+    <path d="M70 106h1260" stroke="#334155"/>
+    <circle cx="104" cy="80" r="7" fill="#fb7185"/><circle cx="128" cy="80" r="7" fill="#fbbf24"/><circle cx="152" cy="80" r="7" fill="#34d399"/>
+    <text x="700" y="86" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace, monospace" font-size="17">HERDR / workspace: plugin-dev</text>
+  </g>
+  <rect x="88" y="124" width="154" height="524" rx="10" fill="#0b1220"/>
+  <text x="112" y="160" fill="#64748b" font-family="ui-monospace, monospace" font-size="14">WORKSPACES</text>
+  <rect x="100" y="181" width="130" height="42" rx="8" fill="#312e81"/>
+  <text x="116" y="207" fill="#e0e7ff" font-family="ui-monospace, monospace" font-size="15">* plugin-dev</text>
+  <text x="116" y="251" fill="#64748b" font-family="ui-monospace, monospace" font-size="15">  docs</text>
+  <text x="112" y="311" fill="#64748b" font-family="ui-monospace, monospace" font-size="14">PANES</text>
+  <text x="116" y="344" fill="#cbd5e1" font-family="ui-monospace, monospace" font-size="15">1  codex</text>
+  <text x="116" y="376" fill="#67e8f9" font-family="ui-monospace, monospace" font-size="15">2  reviewer</text>
+  <rect x="260" y="124" width="652" height="524" rx="10" fill="#090e19" stroke="#334155"/>
+  <rect x="926" y="124" width="386" height="524" rx="10" fill="#090e19" stroke="#22d3ee" stroke-width="2"/>
+  <text x="286" y="158" fill="#a78bfa" font-family="ui-monospace, monospace" font-size="17">&gt; CODEX / parent</text>
+  <text x="286" y="205" fill="#f8fafc" font-family="ui-monospace, monospace" font-size="18">Review the plugin lifecycle and tests.</text>
+  <text x="286" y="259" fill="#94a3b8" font-family="ui-monospace, monospace" font-size="16">- I'll delegate the safety review.</text>
+  <text x="286" y="309" fill="#67e8f9" font-family="ui-monospace, monospace" font-size="16">-&gt; reviewer running</text>
+  <text x="286" y="598" fill="#64748b" font-family="ui-monospace, monospace" font-size="15">focus remains here |</text>
+  <text x="950" y="158" fill="#22d3ee" font-family="ui-monospace, monospace" font-size="17">CODEX SUBAGENT</text>
+  <text x="950" y="198" fill="#94a3b8" font-family="ui-monospace, monospace" font-size="15">type  reviewer</text>
+  <text x="950" y="226" fill="#64748b" font-family="ui-monospace, monospace" font-size="14">id    01a...b72</text>
+  <text x="950" y="278" fill="#34d399" font-family="ui-monospace, monospace" font-size="16">* working</text>
+  <text x="950" y="326" fill="#e2e8f0" font-family="ui-monospace, monospace" font-size="15">Checking pane safety invariants.</text>
+  <text x="950" y="379" fill="#f8fafc" font-family="ui-monospace, monospace" font-size="15">$ uv run pytest -q</text>
+  <text x="950" y="409" fill="#64748b" font-family="ui-monospace, monospace" font-size="14">[completed]</text>
+  <text x="950" y="463" fill="#a78bfa" font-family="ui-monospace, monospace" font-size="15">~ file changes (1)</text>
+  <rect x="902" y="124" width="3" height="524" fill="#334155"/>
+</svg>

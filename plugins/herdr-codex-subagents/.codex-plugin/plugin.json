@@ -1,0 +1,30 @@
+{
+  "name": "herdr-codex-subagents",
+  "version": "0.1.0",
+  "description": "Show Codex subagents in disposable, non-focusing Herdr panes.",
+  "author": {
+    "name": "Konstantin Aristov"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "herdr",
+    "subagents",
+    "terminal",
+    "observability"
+  ],
+  "interface": {
+    "displayName": "Herdr Codex Subagents",
+    "shortDescription": "Watch Codex subagents in temporary Herdr panes.",
+    "longDescription": "Automatically opens a live, read-only Herdr pane for every Codex subagent and closes it when that subagent finishes, without stealing terminal focus.",
+    "developerName": "Konstantin Aristov",
+    "category": "Productivity",
+    "capabilities": [
+      "Hooks",
+      "Observability"
+    ],
+    "defaultPrompt": [
+      "Show my Codex subagents in Herdr panes."
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+name: Bug report
+description: Report incorrect pane lifecycle or viewer behavior.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not attach private Codex rollout files or credentials.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Include the plugin, Codex, Herdr, Python, and operating-system versions.
+      placeholder: Plugin 0.1.0, Codex 0.153.4, Herdr ..., Python 3.12, Ubuntu 24.04
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the smallest safe sequence that reproduces the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checklist
+      options:
+        - label: I removed private rollout content, tokens, credentials, and personal data.
+          required: true

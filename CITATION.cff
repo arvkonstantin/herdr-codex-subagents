@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If this plugin helps your workflow, cite the repository or give it a star."
+title: "Herdr Codex Subagents"
+type: software
+authors:
+  - family-names: Aristov
+    given-names: Konstantin
+repository-code: "https://github.com/arvkonstantin/herdr-codex-subagents"
+url: "https://github.com/arvkonstantin/herdr-codex-subagents"
+license: MIT
+version: 0.1.0
+date-released: 2026-09-09
