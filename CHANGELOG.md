@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-09
+
+### Fixed
+
+- Reopen a Herdr viewer when Codex sends a message or follow-up task to an existing
+  subagent that no longer has a live pane.
+- Register a scoped `PostToolUse` hook for `send_message` and `followup_task`; users
+  must restart Codex and trust the new hook after upgrading.
+
 ## [0.1.3] - 2026-09-09
 
 ### Fixed
@@ -46,7 +55,8 @@ All notable changes to this project are documented in this file. The format foll
 - Strict no-op behavior outside Herdr.
 - Python 3.10+ test matrix with branch coverage enforcement.
 
-[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.0...v0.1.1

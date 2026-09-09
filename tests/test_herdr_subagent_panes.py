@@ -76,6 +76,24 @@ def payload(event: str, agent_id: str, agent_type: str = "worker") -> dict[str, 
     }
 
 
+def interaction_record(
+    tool_use_id: str, agent_id: str, agent_path: str, kind: str = "interacted"
+) -> dict:
+    return {
+        "type": "event_msg",
+        "payload": {
+            "type": "item_completed",
+            "item": {
+                "type": "SubAgentActivity",
+                "id": tool_use_id,
+                "kind": kind,
+                "agent_thread_id": agent_id,
+                "agent_path": agent_path,
+            },
+        },
+    }
+
+
 class HookLifecycleTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -178,6 +196,109 @@ class HookLifecycleTests(unittest.TestCase):
         self.handle("SubagentStart", "agent-1")
         self.handle("SubagentStart", "agent-1")
         self.assertEqual(len(self.herdr.split_calls), 1)
+
+    def test_followup_interaction_reopens_completed_agent(self) -> None:
+        self.handle("SubagentStart", "agent-1")
+        self.handle("SubagentStop", "agent-1")
+        transcript = Path(self.temporary.name) / "parent.jsonl"
+        transcript.write_text(
+            json.dumps(interaction_record("call-1", "agent-1", "/root/reviewer")) + "\n"
+        )
+        event = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "followup_task",
+            "tool_use_id": "call-1",
+            "transcript_path": str(transcript),
+            "session_id": "parent-session",
+            "cwd": str(ROOT),
+        }
+
+        plugin.handle_hook(event, env=self.env, client=self.herdr, script_path=SCRIPT)
+
+        self.assertEqual(self.herdr.split_calls[-1], ("w7:p1", str(ROOT), "right"))
+        self.assertEqual(self.herdr.rename_calls[-1], ("w7:p3", "subagent: reviewer"))
+        self.assertIn("--agent-id agent-1", self.herdr.run_calls[-1][1])
+
+    def test_message_interaction_does_not_duplicate_a_live_viewer(self) -> None:
+        self.handle("SubagentStart", "agent-1")
+        transcript = Path(self.temporary.name) / "parent.jsonl"
+        transcript.write_text(
+            json.dumps(interaction_record("call-1", "agent-1", "/root/reviewer")) + "\n"
+        )
+        event = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "send_message",
+            "tool_use_id": "call-1",
+            "transcript_path": str(transcript),
+            "session_id": "parent-session",
+            "cwd": str(ROOT),
+        }
+
+        plugin.handle_hook(event, env=self.env, client=self.herdr, script_path=SCRIPT)
+
+        self.assertEqual(len(self.herdr.split_calls), 1)
+
+    def test_interaction_with_root_or_unrelated_tool_is_ignored(self) -> None:
+        transcript = Path(self.temporary.name) / "parent.jsonl"
+        transcript.write_text(
+            json.dumps(interaction_record("other-call", "agent-1", "/root/reviewer"))
+            + "\n"
+            + json.dumps(interaction_record("call-1", "root-id", "/root"))
+            + "\nnot-json\n"
+        )
+        event = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "send_message",
+            "tool_use_id": "call-1",
+            "transcript_path": str(transcript),
+            "session_id": "parent-session",
+            "cwd": str(ROOT),
+        }
+
+        plugin.handle_hook(event, env=self.env, client=self.herdr, script_path=SCRIPT)
+        event["tool_name"] = "wait_agent"
+        plugin.handle_hook(event, env=self.env, client=self.herdr, script_path=SCRIPT)
+
+        self.assertEqual(self.herdr.split_calls, [])
+
+    def test_interaction_parser_handles_missing_and_unrelated_records(self) -> None:
+        self.assertIsNone(plugin._interacted_agent({"tool_name": "send_message"}))
+        self.assertIsNone(
+            plugin._interacted_agent(
+                {
+                    "tool_name": "send_message",
+                    "tool_use_id": "call-1",
+                    "transcript_path": str(Path(self.temporary.name) / "missing.jsonl"),
+                }
+            )
+        )
+        transcript = Path(self.temporary.name) / "parent.jsonl"
+        transcript.write_text("not-json\n{}\n")
+        self.assertIsNone(
+            plugin._interacted_agent(
+                {
+                    "tool_name": "send_message",
+                    "tool_use_id": "call-1",
+                    "transcript_path": str(transcript),
+                }
+            )
+        )
+
+    def test_interaction_parser_rejects_non_interaction_activity(self) -> None:
+        transcript = Path(self.temporary.name) / "parent.jsonl"
+        transcript.write_text(
+            json.dumps(interaction_record("call-1", "agent-1", "/root/reviewer", "started"))
+            + "\n"
+        )
+        self.assertIsNone(
+            plugin._interacted_agent(
+                {
+                    "tool_name": "followup_task",
+                    "tool_use_id": "call-1",
+                    "transcript_path": str(transcript),
+                }
+            )
+        )
 
     def test_stale_rightmost_pane_is_pruned_before_next_split(self) -> None:
         self.handle("SubagentStart", "agent-1")
@@ -383,8 +504,9 @@ class StateTests(unittest.TestCase):
         hooks_path = ROOT / "hooks" / "hooks.json"
         hooks = json.loads(hooks_path.read_text())["hooks"]
         self.assertEqual(hooks["SessionEnd"][0]["hooks"][0]["timeout"], 3)
-        for event in ("SessionStart", "SubagentStart", "SubagentStop"):
+        for event in ("SessionStart", "SubagentStart", "SubagentStop", "PostToolUse"):
             self.assertEqual(hooks[event][0]["hooks"][0]["timeout"], 10)
+        self.assertEqual(hooks["PostToolUse"][0]["matcher"], "send_message|followup_task")
 
     def test_data_dir_fallback_is_user_scoped(self) -> None:
         with (

@@ -42,7 +42,7 @@ codex plugin marketplace add arvkonstantin/herdr-codex-subagents
 codex plugin add herdr-codex-subagents@herdr-codex-subagents
 ```
 
-Start a new Codex session inside Herdr. Open `/hooks`, review the four plugin hooks, and trust them.
+Start a new Codex session inside Herdr. Open `/hooks`, review the five plugin hooks, and trust them.
 
 For a local checkout, replace the GitHub repository in the first command with its absolute path.
 
@@ -50,6 +50,7 @@ For a local checkout, replace the GitHub repository in the first command with it
 
 - Keeps the parent in the left half and tiles subagent viewers in the right half without moving focus.
 - Streams a compact view of each subagent's local Codex rollout.
+- Reopens the matching viewer when Codex interacts with an existing subagent.
 - Tracks the exact `agent_id` to `pane_id` relationship and closes the matching pane on completion.
 - Does nothing outside a Herdr-managed pane.
 
@@ -71,7 +72,9 @@ not start another Codex instance.
 The viewer renders assistant updates, shell commands, file changes, MCP calls, and terminal status.
 The first viewer takes the right half. Further viewers split that half breadth-first, alternating
 down and right at each level. Concurrent hook processes serialize state changes with a file lock.
-Session hooks clean up tracked viewers after a session ends or before a parent pane is reused.
+`PostToolUse` resolves successful `send_message` and `followup_task` calls from the parent rollout,
+so reused agents get a fresh viewer without keeping idle panes open. Session hooks clean up tracked
+viewers after a session ends or before a parent pane is reused.
 
 ## Requirements
 
@@ -97,6 +100,7 @@ defaults to `~/.codex`.
 ## Troubleshooting
 
 - No pane appears: start Codex inside Herdr and trust the plugin hooks through `/hooks`.
+- After upgrading, restart Codex and trust any newly added plugin hook through `/hooks`.
 - A viewer is waiting: the child rollout is created asynchronously and will be attached when it appears.
 - A stale viewer remains after a crash: start a new Codex session in the same parent pane to clean it up.
 - Diagnostics are written to `plugin.log` in the Codex-provided `PLUGIN_DATA` directory.

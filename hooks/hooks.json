@@ -48,6 +48,19 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "send_message|followup_task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/herdr_subagent_panes.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Opening a Herdr pane for agent interaction"
+          }
+        ]
+      }
     ]
   }
 }

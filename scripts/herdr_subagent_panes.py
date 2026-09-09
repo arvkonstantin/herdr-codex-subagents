@@ -26,6 +26,7 @@ STATE_VERSION = 1
 DEFAULT_POLL_INTERVAL = 0.2
 DEFAULT_CLOSE_GRACE = 0.35
 MAX_RENDERED_TEXT = 2_000
+RECENT_INTERACTION_RECORDS = 200
 SplitDirection = Literal["right", "down"]
 
 
@@ -400,6 +401,68 @@ def _handle_stop(payload: Mapping[str, Any], env: Mapping[str, str], client: Her
         _log(data_dir, f"closed agent={agent_id} pane={pane_id} existed={pane_exists}")
 
 
+def _interacted_agent(payload: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Resolve the exact non-root agent from a completed collaboration tool call."""
+    if payload.get("tool_name") not in {"send_message", "followup_task"}:
+        return None
+    transcript_path = payload.get("transcript_path")
+    tool_use_id = payload.get("tool_use_id")
+    if not isinstance(transcript_path, str) or not isinstance(tool_use_id, str):
+        return None
+
+    try:
+        with Path(transcript_path).open("r", encoding="utf-8", errors="replace") as handle:
+            recent = deque(handle, maxlen=RECENT_INTERACTION_RECORDS)
+    except OSError:
+        return None
+
+    for line in reversed(recent):
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        item = _nested_get(record, "payload", "item")
+        if not isinstance(item, dict) or item.get("id") != tool_use_id:
+            continue
+        if item.get("type") != "SubAgentActivity" or item.get("kind") != "interacted":
+            return None
+        agent_id = item.get("agent_thread_id")
+        agent_path = item.get("agent_path")
+        if (
+            not isinstance(agent_id, str)
+            or not agent_id
+            or not isinstance(agent_path, str)
+            or agent_path == "/root"
+        ):
+            return None
+        agent_type = agent_path.rsplit("/", 1)[-1] or "worker"
+        return agent_id, agent_type
+    return None
+
+
+def _handle_interaction(
+    payload: Mapping[str, Any],
+    env: Mapping[str, str],
+    client: HerdrClient,
+    script_path: Path,
+) -> None:
+    agent = _interacted_agent(payload)
+    if agent is None:
+        return
+    agent_id, agent_type = agent
+    _handle_start(
+        {
+            "agent_id": agent_id,
+            "agent_type": agent_type,
+            "session_id": payload.get("session_id"),
+            "cwd": payload.get("cwd"),
+        },
+        env,
+        client,
+        script_path,
+    )
+
+
 def _cleanup_sessions(
     payload: Mapping[str, Any],
     env: Mapping[str, str],
@@ -462,6 +525,8 @@ def handle_hook(
         _handle_start(payload, active_env, active_client, active_script)
     elif event_name == "SubagentStop":
         _handle_stop(payload, active_env, active_client)
+    elif event_name == "PostToolUse":
+        _handle_interaction(payload, active_env, active_client, active_script)
 
 
 def _find_transcript(codex_home: Path, agent_id: str) -> Path | None:
