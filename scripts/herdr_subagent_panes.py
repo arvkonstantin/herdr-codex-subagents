@@ -17,9 +17,10 @@ import sys
 import tempfile
 import textwrap
 import time
+from collections import deque
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TextIO
 
 STATE_VERSION = 1
 DEFAULT_POLL_INTERVAL = 0.2
@@ -550,6 +551,28 @@ def render_rollout_event(record: Mapping[str, Any]) -> tuple[list[str], bool]:
     return [], False
 
 
+def _current_task_snapshot(handle: TextIO) -> list[dict[str, Any]]:
+    """Read the existing transcript and retain only its latest task."""
+    current: list[dict[str, Any]] = []
+    while line := handle.readline():
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        payload = record.get("payload")
+        if (
+            record.get("type") == "event_msg"
+            and isinstance(payload, dict)
+            and payload.get("type") == "task_started"
+        ):
+            current = [record]
+        elif current:
+            current.append(record)
+    return current
+
+
 def _close_own_pane(parent_pane_id: str, client: HerdrClient | None = None) -> None:
     own_pane_id = os.environ.get("HERDR_PANE_ID")
     if not own_pane_id or own_pane_id == parent_pane_id or os.environ.get("HERDR_ENV") != "1":
@@ -587,15 +610,21 @@ def view_subagent(
 
     print(f"transcript  {transcript.name}\n", flush=True)
     with transcript.open("r", encoding="utf-8", errors="replace") as handle:
+        pending = deque(_current_task_snapshot(handle))
         while True:
-            line = handle.readline()
-            if not line:
-                time.sleep(poll_interval)
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+            if pending:
+                record = pending.popleft()
+            else:
+                line = handle.readline()
+                if not line:
+                    time.sleep(poll_interval)
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(record, dict):
+                    continue
             lines, terminal = render_rollout_event(record)
             for rendered in lines:
                 print(rendered, flush=True)

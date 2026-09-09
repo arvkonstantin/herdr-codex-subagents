@@ -6,6 +6,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-09
+
+### Fixed
+
+- Keep subagent panes open for the active task when Codex transcripts contain
+  inherited completed tasks.
+
 ## [0.1.2] - 2026-09-09
 
 ### Added
@@ -39,7 +46,8 @@ All notable changes to this project are documented in this file. The format foll
 - Strict no-op behavior outside Herdr.
 - Python 3.10+ test matrix with branch coverage enforcement.
 
-[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/arvkonstantin/herdr-codex-subagents/releases/tag/v0.1.0

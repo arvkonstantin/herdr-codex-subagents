@@ -486,9 +486,20 @@ class ViewerTests(unittest.TestCase):
         self.assertEqual(plugin._command_text("make test"), "make test")
         self.assertEqual(plugin._command_text(None), "command")
 
+    def test_current_task_snapshot_ignores_invalid_and_non_task_records(self) -> None:
+        snapshot = io.StringIO(
+            "not-json\n"
+            "[]\n"
+            '{"type":"event_msg","payload":[]}\n'
+            '{"type":"event_msg","payload":{"type":"task_complete"}}\n'
+        )
+        self.assertEqual(plugin._current_task_snapshot(snapshot), [])
+
     @mock.patch.object(plugin, "_close_own_pane")
     @mock.patch.object(plugin.time, "sleep")
-    def test_viewer_reads_rollout_until_terminal(self, sleep: mock.Mock, close: mock.Mock) -> None:
+    def test_viewer_ignores_inherited_completed_tasks(
+        self, sleep: mock.Mock, close: mock.Mock
+    ) -> None:
         del sleep
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary) / "sessions" / "2026" / "09" / "09"
@@ -497,6 +508,32 @@ class ViewerTests(unittest.TestCase):
             records = [
                 "not-json",
                 json.dumps({"type": "event_msg", "payload": {"type": "task_started"}}),
+                json.dumps(
+                    {
+                        "type": "event_msg",
+                        "payload": {
+                            "type": "item_completed",
+                            "item": {
+                                "type": "AgentMessage",
+                                "content": [{"text": "inherited output"}],
+                            },
+                        },
+                    }
+                ),
+                json.dumps({"type": "event_msg", "payload": {"type": "task_complete"}}),
+                json.dumps({"type": "event_msg", "payload": {"type": "task_started"}}),
+                json.dumps(
+                    {
+                        "type": "event_msg",
+                        "payload": {
+                            "type": "item_completed",
+                            "item": {
+                                "type": "AgentMessage",
+                                "content": [{"text": "current output"}],
+                            },
+                        },
+                    }
+                ),
                 json.dumps({"type": "event_msg", "payload": {"type": "task_complete"}}),
             ]
             transcript.write_text("\n".join(records) + "\n")
@@ -504,7 +541,9 @@ class ViewerTests(unittest.TestCase):
             with mock.patch("sys.stdout", output):
                 plugin.view_subagent("agent-123", "worker", "parent", "w1:p1", Path(temporary), 0)
             self.assertIn("Codex subagent", output.getvalue())
-            self.assertIn("✓ complete", output.getvalue())
+            self.assertNotIn("inherited output", output.getvalue())
+            self.assertIn("current output", output.getvalue())
+            self.assertEqual(output.getvalue().count("✓ complete"), 1)
             close.assert_called_once_with("w1:p1")
 
     def test_missing_sessions_directory_has_no_transcript(self) -> None:
