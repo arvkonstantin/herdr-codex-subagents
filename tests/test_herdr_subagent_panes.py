@@ -546,6 +546,31 @@ class ViewerTests(unittest.TestCase):
             self.assertEqual(output.getvalue().count("✓ complete"), 1)
             close.assert_called_once_with("w1:p1")
 
+    @mock.patch.object(plugin, "_close_own_pane")
+    @mock.patch.object(plugin.time, "sleep")
+    @mock.patch.object(plugin, "_current_task_snapshot", return_value=[])
+    def test_viewer_follows_new_records_after_snapshot(
+        self, snapshot: mock.Mock, sleep: mock.Mock, close: mock.Mock
+    ) -> None:
+        del sleep
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "sessions" / "2026" / "09" / "09"
+            target.mkdir(parents=True)
+            transcript = target / "rollout-now-agent-123.jsonl"
+            transcript.write_text(
+                "not-json\n"
+                "[]\n"
+                '{"type":"event_msg","payload":{"type":"task_complete"}}\n'
+            )
+            output = io.StringIO()
+
+            with mock.patch("sys.stdout", output):
+                plugin.view_subagent("agent-123", "worker", "parent", "w1:p1", Path(temporary), 0)
+
+            snapshot.assert_called_once()
+            self.assertIn("✓ complete", output.getvalue())
+            close.assert_called_once_with("w1:p1")
+
     def test_missing_sessions_directory_has_no_transcript(self) -> None:
         self.assertIsNone(plugin._find_transcript(Path("/missing"), "agent"))
 
