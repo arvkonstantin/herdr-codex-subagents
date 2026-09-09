@@ -55,7 +55,7 @@ For a local checkout, replace the GitHub repository in the first command with it
 
 ## What it does
 
-- Splits the parent Herdr pane to the right without moving focus.
+- Keeps the parent in the left half and tiles subagent viewers in the right half without moving focus.
 - Streams a compact view of each subagent's local Codex rollout.
 - Tracks the exact `agent_id` to `pane_id` relationship and closes the matching pane on completion.
 - Does nothing outside a Herdr-managed pane.
@@ -66,15 +66,19 @@ not start another Codex instance.
 ## How it works
 
 ```text
-SubagentStart(A)  -> split parent right  -> parent | A
-SubagentStart(B)  -> split A right       -> parent | A | B
-SubagentStop(A)   -> close A             -> parent | B
-SubagentStop(B)   -> close B             -> parent
+1 viewer    parent | A
+
+2 viewers   parent | A
+                   | B
+
+4 viewers   parent | A | C
+                   | B | D
 ```
 
 The viewer renders assistant updates, shell commands, file changes, MCP calls, and terminal status.
-Concurrent hook processes serialize state changes with a file lock. Session hooks clean up tracked
-viewers after a session ends or before a parent pane is reused.
+The first viewer takes the right half. Further viewers split that half breadth-first, alternating
+down and right at each level. Concurrent hook processes serialize state changes with a file lock.
+Session hooks clean up tracked viewers after a session ends or before a parent pane is reused.
 
 ## Requirements
 

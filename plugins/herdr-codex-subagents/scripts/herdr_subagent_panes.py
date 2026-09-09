@@ -19,12 +19,13 @@ import textwrap
 import time
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 STATE_VERSION = 1
 DEFAULT_POLL_INTERVAL = 0.2
 DEFAULT_CLOSE_GRACE = 0.35
 MAX_RENDERED_TEXT = 2_000
+SplitDirection = Literal["right", "down"]
 
 
 class HerdrError(RuntimeError):
@@ -37,9 +38,7 @@ class HerdrClient:
     def __init__(self, executable: str = "herdr") -> None:
         self.executable = executable
 
-    def _call(
-        self, *args: str, timeout: float = 5.0, allow_empty: bool = False
-    ) -> dict[str, Any]:
+    def _call(self, *args: str, timeout: float = 5.0, allow_empty: bool = False) -> dict[str, Any]:
         completed = subprocess.run(
             [self.executable, *args],
             check=False,
@@ -67,13 +66,13 @@ class HerdrClient:
             return False
         return True
 
-    def split_right(self, pane_id: str, cwd: str) -> str:
+    def split(self, pane_id: str, cwd: str, direction: SplitDirection) -> str:
         payload = self._call(
             "pane",
             "split",
             pane_id,
             "--direction",
-            "right",
+            direction,
             "--cwd",
             cwd,
             "--no-focus",
@@ -169,6 +168,7 @@ def _prune_session(session: dict[str, Any], client: HerdrClient) -> None:
     if not isinstance(agents, dict):
         session["agents"] = {}
         return
+    _ensure_layout_paths(agents)
     stale = [
         agent_id
         for agent_id, entry in agents.items()
@@ -177,7 +177,63 @@ def _prune_session(session: dict[str, Any], client: HerdrClient) -> None:
         or not client.pane_exists(entry["pane_id"])
     ]
     for agent_id in stale:
-        agents.pop(agent_id, None)
+        _remove_agent(agents, agent_id)
+
+
+def _ensure_layout_paths(agents: dict[str, Any]) -> None:
+    entries = {agent_id: entry for agent_id, entry in agents.items() if isinstance(entry, dict)}
+    paths = [entry.get("layout_path") for entry in entries.values()]
+    valid = (
+        len(entries) == len(agents)
+        and all(isinstance(path, str) and set(path) <= {"0", "1"} for path in paths)
+        and len(set(paths)) == len(paths)
+        and not any(left != right and right.startswith(left) for left in paths for right in paths)
+    )
+    if valid:
+        return
+
+    ordered = sorted(
+        entries.items(),
+        key=lambda item: (_agent_sequence(item[1]), item[0]),
+    )
+    assigned: dict[str, str] = {}
+    for agent_id, _ in ordered:
+        if not assigned:
+            assigned[agent_id] = ""
+            continue
+        target = min(
+            assigned, key=lambda candidate: (len(assigned[candidate]), assigned[candidate])
+        )
+        path = assigned[target]
+        assigned[target] = f"{path}0"
+        assigned[agent_id] = f"{path}1"
+    for agent_id, path in assigned.items():
+        entries[agent_id]["layout_path"] = path
+
+
+def _agent_sequence(entry: Mapping[str, Any]) -> int:
+    try:
+        return int(entry.get("sequence", -1))
+    except (TypeError, ValueError):
+        return -1
+
+
+def _remove_agent(agents: dict[str, Any], agent_id: str) -> None:
+    entry = agents.pop(agent_id, None)
+    if not isinstance(entry, dict):
+        return
+    path = entry.get("layout_path")
+    if not isinstance(path, str) or not path:
+        return
+
+    parent = path[:-1]
+    sibling = f"{parent}{'1' if path[-1] == '0' else '0'}"
+    for remaining in agents.values():
+        if not isinstance(remaining, dict):
+            continue
+        remaining_path = remaining.get("layout_path")
+        if isinstance(remaining_path, str) and remaining_path.startswith(sibling):
+            remaining["layout_path"] = parent + remaining_path[len(sibling) :]
 
 
 def _find_agent(
@@ -263,11 +319,20 @@ def _handle_start(
         _prune_session(session, client)
         agents = session["agents"]
         anchor = root_pane_id
+        direction: SplitDirection = "right"
+        anchor_entry: dict[str, Any] | None = None
+        anchor_path = ""
         if agents:
-            latest = max(agents.values(), key=lambda entry: int(entry.get("sequence", -1)))
-            anchor = latest["pane_id"]
+            _ensure_layout_paths(agents)
+            _, anchor_entry = min(
+                agents.items(),
+                key=lambda item: (len(item[1]["layout_path"]), item[1]["layout_path"]),
+            )
+            anchor = anchor_entry["pane_id"]
+            anchor_path = anchor_entry["layout_path"]
+            direction = "down" if len(anchor_path) % 2 == 0 else "right"
 
-        pane_id = client.split_right(anchor, cwd)
+        pane_id = client.split(anchor, cwd, direction)
         label = f"subagent: {agent_type}"[:80]
         with contextlib.suppress(HerdrError, subprocess.SubprocessError):
             client.rename(pane_id, label)
@@ -289,14 +354,20 @@ def _handle_start(
             raise
 
         state["next_sequence"] += 1
+        if anchor_entry is not None:
+            anchor_entry["layout_path"] = f"{anchor_path}0"
         agents[agent_id] = {
             "agent_type": agent_type,
+            "layout_path": "" if anchor_entry is None else f"{anchor_path}1",
             "pane_id": pane_id,
             "sequence": state["next_sequence"],
             "started_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         }
         _save_state(state_path, state)
-        _log(data_dir, f"opened agent={agent_id} pane={pane_id} anchor={anchor}")
+        _log(
+            data_dir,
+            f"opened agent={agent_id} pane={pane_id} anchor={anchor} direction={direction}",
+        )
 
 
 def _handle_stop(payload: Mapping[str, Any], env: Mapping[str, str], client: HerdrClient) -> None:
@@ -318,7 +389,10 @@ def _handle_stop(payload: Mapping[str, Any], env: Mapping[str, str], client: Her
         pane_exists = client.pane_exists(pane_id)
         if pane_exists:
             client.close(pane_id)
-        session.get("agents", {}).pop(agent_id, None)
+        agents = session.get("agents", {})
+        if isinstance(agents, dict):
+            _ensure_layout_paths(agents)
+            _remove_agent(agents, agent_id)
         if not session.get("agents"):
             state.get("sessions", {}).pop(key, None)
         _save_state(state_path, state)

@@ -19,7 +19,7 @@
           {
             "type": "command",
             "command": "python3 \"$PLUGIN_ROOT/scripts/herdr_subagent_panes.py\" hook",
-            "timeout": 10,
+            "timeout": 3,
             "statusMessage": "Closing Herdr subagent panes"
           }
         ]

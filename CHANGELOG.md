@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-09
+
+### Added
+
+- Balanced, alternating pane layout that keeps the parent in the left half.
+
+### Fixed
+
+- Use Codex's three-second maximum timeout for the `SessionEnd` hook.
+
 ## [0.1.0] - 2026-09-09
 
 ### Added
@@ -17,5 +27,6 @@ All notable changes to this project are documented in this file. The format foll
 - Strict no-op behavior outside Herdr.
 - Python 3.10+ test matrix with branch coverage enforcement.
 
-[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/arvkonstantin/herdr-codex-subagents/releases/tag/v0.1.0

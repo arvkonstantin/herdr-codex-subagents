@@ -21,7 +21,7 @@ SPEC.loader.exec_module(plugin)
 class FakeHerdr:
     def __init__(self, root: str = "w7:p1") -> None:
         self.live = {root}
-        self.split_calls: list[tuple[str, str]] = []
+        self.split_calls: list[tuple[str, str, str]] = []
         self.rename_calls: list[tuple[str, str]] = []
         self.run_calls: list[tuple[str, str]] = []
         self.close_calls: list[str] = []
@@ -31,12 +31,12 @@ class FakeHerdr:
     def pane_exists(self, pane_id: str) -> bool:
         return pane_id in self.live
 
-    def split_right(self, pane_id: str, cwd: str) -> str:
+    def split(self, pane_id: str, cwd: str, direction: str) -> str:
         with self._mutex:
             new_pane = f"w7:p{self._next}"
             self._next += 1
             self.live.add(new_pane)
-            self.split_calls.append((pane_id, cwd))
+            self.split_calls.append((pane_id, cwd, direction))
             return new_pane
 
     def rename(self, pane_id: str, label: str) -> None:
@@ -104,20 +104,44 @@ class HookLifecycleTests(unittest.TestCase):
     def test_first_agent_splits_parent_to_the_right_without_focus(self) -> None:
         self.handle("SubagentStart", "agent-1", "reviewer")
 
-        self.assertEqual(self.herdr.split_calls, [("w7:p1", str(ROOT))])
+        self.assertEqual(self.herdr.split_calls, [("w7:p1", str(ROOT), "right")])
         self.assertEqual(self.herdr.rename_calls, [("w7:p2", "subagent: reviewer")])
         self.assertEqual(self.herdr.run_calls[0][0], "w7:p2")
         self.assertIn("--parent-pane-id w7:p1", self.herdr.run_calls[0][1])
         session = next(iter(self.state()["sessions"].values()))
         self.assertEqual(session["agents"]["agent-1"]["pane_id"], "w7:p2")
+        self.assertEqual(session["agents"]["agent-1"]["layout_path"], "")
 
-    def test_concurrent_agents_keep_splitting_the_rightmost_viewer(self) -> None:
-        for index in range(1, 5):
+    def test_concurrent_agents_tile_the_right_half_breadth_first(self) -> None:
+        for index in range(1, 9):
             self.handle("SubagentStart", f"agent-{index}")
 
         self.assertEqual(
-            [anchor for anchor, _ in self.herdr.split_calls],
-            ["w7:p1", "w7:p2", "w7:p3", "w7:p4"],
+            self.herdr.split_calls,
+            [
+                ("w7:p1", str(ROOT), "right"),
+                ("w7:p2", str(ROOT), "down"),
+                ("w7:p2", str(ROOT), "right"),
+                ("w7:p3", str(ROOT), "right"),
+                ("w7:p2", str(ROOT), "down"),
+                ("w7:p4", str(ROOT), "down"),
+                ("w7:p3", str(ROOT), "down"),
+                ("w7:p5", str(ROOT), "down"),
+            ],
+        )
+        session = next(iter(self.state()["sessions"].values()))
+        self.assertEqual(
+            {agent_id: entry["layout_path"] for agent_id, entry in session["agents"].items()},
+            {
+                "agent-1": "000",
+                "agent-5": "001",
+                "agent-3": "010",
+                "agent-6": "011",
+                "agent-2": "100",
+                "agent-7": "101",
+                "agent-4": "110",
+                "agent-8": "111",
+            },
         )
 
     def test_stop_closes_only_the_exact_agent_pane(self) -> None:
@@ -130,6 +154,20 @@ class HookLifecycleTests(unittest.TestCase):
         self.assertIn("w7:p1", self.herdr.live)
         session = next(iter(self.state()["sessions"].values()))
         self.assertEqual(set(session["agents"]), {"agent-2"})
+
+    def test_stop_collapses_the_layout_branch_before_the_next_split(self) -> None:
+        for index in range(1, 5):
+            self.handle("SubagentStart", f"agent-{index}")
+
+        self.handle("SubagentStop", "agent-3")
+        session = next(iter(self.state()["sessions"].values()))
+        self.assertEqual(
+            {agent_id: entry["layout_path"] for agent_id, entry in session["agents"].items()},
+            {"agent-1": "0", "agent-2": "10", "agent-4": "11"},
+        )
+
+        self.handle("SubagentStart", "agent-5")
+        self.assertEqual(self.herdr.split_calls[-1], ("w7:p2", str(ROOT), "right"))
 
     def test_last_stop_removes_empty_session(self) -> None:
         self.handle("SubagentStart", "agent-1")
@@ -145,7 +183,7 @@ class HookLifecycleTests(unittest.TestCase):
         self.handle("SubagentStart", "agent-1")
         self.herdr.live.discard("w7:p2")
         self.handle("SubagentStart", "agent-2")
-        self.assertEqual(self.herdr.split_calls[-1][0], "w7:p1")
+        self.assertEqual(self.herdr.split_calls[-1], ("w7:p1", str(ROOT), "right"))
 
     def test_non_herdr_surface_is_a_strict_noop(self) -> None:
         for env in ({}, {"HERDR_ENV": "0", "HERDR_PANE_ID": "w7:p1"}):
@@ -168,7 +206,7 @@ class HookLifecycleTests(unittest.TestCase):
         event["cwd"] = "/path/that/does/not/exist"
         with mock.patch.object(plugin.os, "getcwd", return_value="/fallback"):
             plugin.handle_hook(event, env=self.env, client=self.herdr, script_path=SCRIPT)
-        self.assertEqual(self.herdr.split_calls, [("w7:p1", "/fallback")])
+        self.assertEqual(self.herdr.split_calls, [("w7:p1", "/fallback", "right")])
 
     def test_rename_failure_does_not_discard_viewer(self) -> None:
         herdr = FailingHerdr("rename")
@@ -246,7 +284,7 @@ class HerdrClientTests(unittest.TestCase):
         run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0, stdout='{"result":{"pane":{"pane_id":"w1:p9"}}}', stderr=""
         )
-        pane = plugin.HerdrClient("herdr-test").split_right("w1:p4", "/work")
+        pane = plugin.HerdrClient("herdr-test").split("w1:p4", "/work", "down")
         self.assertEqual(pane, "w1:p9")
         self.assertEqual(
             run.call_args.args[0],
@@ -256,7 +294,7 @@ class HerdrClientTests(unittest.TestCase):
                 "split",
                 "w1:p4",
                 "--direction",
-                "right",
+                "down",
                 "--cwd",
                 "/work",
                 "--no-focus",
@@ -298,7 +336,7 @@ class HerdrClientTests(unittest.TestCase):
             args=[], returncode=0, stdout="{}", stderr=""
         )
         with self.assertRaisesRegex(plugin.HerdrError, "pane id"):
-            plugin.HerdrClient().split_right("w1:p1", "/work")
+            plugin.HerdrClient().split("w1:p1", "/work", "right")
 
     @mock.patch.object(plugin.subprocess, "run")
     def test_rename_run_and_close_use_exact_pane(self, run: mock.Mock) -> None:
@@ -328,6 +366,25 @@ class StateTests(unittest.TestCase):
             state = Path(temporary) / "state.json"
             state.write_text('{"version":1,"next_sequence":"bad","sessions":{}}')
             self.assertEqual(plugin._load_state(state)["next_sequence"], 0)
+
+    def test_old_agent_state_gets_balanced_layout_paths(self) -> None:
+        agents = {
+            "agent-2": {"pane_id": "w7:p3", "sequence": 2},
+            "agent-1": {"pane_id": "w7:p2", "sequence": "bad"},
+            "agent-3": {"pane_id": "w7:p4", "sequence": 3},
+        }
+        plugin._ensure_layout_paths(agents)
+        self.assertEqual(
+            {agent_id: entry["layout_path"] for agent_id, entry in agents.items()},
+            {"agent-1": "00", "agent-2": "1", "agent-3": "01"},
+        )
+
+    def test_session_end_uses_codex_timeout_limit(self) -> None:
+        hooks_path = ROOT / "plugins" / "herdr-codex-subagents" / "hooks" / "hooks.json"
+        hooks = json.loads(hooks_path.read_text())["hooks"]
+        self.assertEqual(hooks["SessionEnd"][0]["hooks"][0]["timeout"], 3)
+        for event in ("SessionStart", "SubagentStart", "SubagentStop"):
+            self.assertEqual(hooks[event][0]["hooks"][0]["timeout"], 10)
 
     def test_data_dir_fallback_is_user_scoped(self) -> None:
         with (
