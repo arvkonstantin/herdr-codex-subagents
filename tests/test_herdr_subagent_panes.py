@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "plugins" / "herdr-codex-subagents" / "scripts" / "herdr_subagent_panes.py"
+SCRIPT = ROOT / "scripts" / "herdr_subagent_panes.py"
 SPEC = importlib.util.spec_from_file_location("herdr_subagent_panes", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 plugin = importlib.util.module_from_spec(SPEC)
@@ -380,7 +380,7 @@ class StateTests(unittest.TestCase):
         )
 
     def test_session_end_uses_codex_timeout_limit(self) -> None:
-        hooks_path = ROOT / "plugins" / "herdr-codex-subagents" / "hooks" / "hooks.json"
+        hooks_path = ROOT / "hooks" / "hooks.json"
         hooks = json.loads(hooks_path.read_text())["hooks"]
         self.assertEqual(hooks["SessionEnd"][0]["hooks"][0]["timeout"], 3)
         for event in ("SessionStart", "SubagentStart", "SubagentStop"):

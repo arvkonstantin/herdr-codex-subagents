@@ -8,7 +8,7 @@
       "name": "herdr-codex-subagents",
       "source": {
         "source": "local",
-        "path": "./plugins/herdr-codex-subagents"
+        "path": "./"
       },
       "policy": {
         "installation": "AVAILABLE",

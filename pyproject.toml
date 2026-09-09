@@ -19,7 +19,7 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true
-source = ["plugins/herdr-codex-subagents/scripts"]
+source = ["scripts"]
 
 [tool.coverage.report]
 fail_under = 90
