@@ -26,7 +26,6 @@
   <img alt="Repository size" src="https://img.shields.io/github/repo-size/arvkonstantin/herdr-codex-subagents">
   <img alt="Primary language" src="https://img.shields.io/github/languages/top/arvkonstantin/herdr-codex-subagents">
   <img alt="Languages" src="https://img.shields.io/github/languages/count/arvkonstantin/herdr-codex-subagents">
-  <img alt="Downloads" src="https://img.shields.io/github/downloads/arvkonstantin/herdr-codex-subagents/total">
 </p>
 
 <p align="center">
