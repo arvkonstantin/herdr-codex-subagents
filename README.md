@@ -6,25 +6,13 @@
 
 <p align="center">
   <a href="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/ci.yml"><img alt="Coverage threshold" src="https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen"></a>
+  <a href="https://codecov.io/gh/arvkonstantin/herdr-codex-subagents"><img alt="Coverage" src="https://codecov.io/gh/arvkonstantin/herdr-codex-subagents/graph/badge.svg"></a>
   <a href="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/codeql.yml/badge.svg"></a>
   <a href="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/dependency-review.yml"><img alt="Dependency review" src="https://github.com/arvkonstantin/herdr-codex-subagents/actions/workflows/dependency-review.yml/badge.svg"></a>
   <a href="https://hol.org/guard"><img alt="HOL Guard" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fguard%2Farvkonstantin%2Fherdr-codex-subagents%3Fstyle%3Dflat-square"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/arvkonstantin/herdr-codex-subagents"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/arvkonstantin/herdr-codex-subagents/badge"></a>
   <a href="https://github.com/arvkonstantin/herdr-codex-subagents/releases"><img alt="Release" src="https://img.shields.io/github/v/release/arvkonstantin/herdr-codex-subagents?display_name=tag&sort=semver"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/arvkonstantin/herdr-codex-subagents"></a>
-</p>
-
-<p align="center">
-  <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Codex hooks" src="https://img.shields.io/badge/Codex-lifecycle_hooks-111827?logo=openai&logoColor=white">
-  <a href="https://herdr.dev"><img alt="Herdr" src="https://img.shields.io/badge/Herdr-native_panes-7C3AED"></a>
-  <img alt="Platforms" src="https://img.shields.io/badge/platform-Linux_%7C_macOS-0F172A">
-  <a href="https://docs.astral.sh/ruff/"><img alt="Ruff" src="https://img.shields.io/badge/style-Ruff-D7FF64?logo=ruff&logoColor=261230"></a>
-  <a href="https://docs.pytest.org/"><img alt="pytest" src="https://img.shields.io/badge/tested_with-pytest-0A9EDC?logo=pytest&logoColor=white"></a>
-  <a href=".github/dependabot.yml"><img alt="Dependabot" src="https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot&logoColor=white"></a>
-  <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-059669"></a>
-  <a href="CONTRIBUTING.md"><img alt="Pull requests welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg"></a>
 </p>
 
 <p align="center">
