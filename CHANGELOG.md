@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-09
+
+### Added
+
+- Rich plugin catalog metadata and a dedicated plugin icon.
+- HOL Plugin Scanner enforcement for pull requests and the default branch.
+
+### Changed
+
+- Restructure the repository as an installable root-level plugin and package the
+  correct plugin contents in release archives.
+
 ## [0.1.1] - 2026-09-09
 
 ### Added
@@ -27,6 +39,7 @@ All notable changes to this project are documented in this file. The format foll
 - Strict no-op behavior outside Herdr.
 - Python 3.10+ test matrix with branch coverage enforcement.
 
-[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/arvkonstantin/herdr-codex-subagents/releases/tag/v0.1.0
