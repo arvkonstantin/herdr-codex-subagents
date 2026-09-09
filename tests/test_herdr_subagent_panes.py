@@ -206,7 +206,7 @@ class HookLifecycleTests(unittest.TestCase):
         )
         event = {
             "hook_event_name": "PostToolUse",
-            "tool_name": "followup_task",
+            "tool_name": "collaborationfollowup_task",
             "tool_use_id": "call-1",
             "transcript_path": str(transcript),
             "session_id": "parent-session",
@@ -227,7 +227,7 @@ class HookLifecycleTests(unittest.TestCase):
         )
         event = {
             "hook_event_name": "PostToolUse",
-            "tool_name": "send_message",
+            "tool_name": "collaborationsend_message",
             "tool_use_id": "call-1",
             "transcript_path": str(transcript),
             "session_id": "parent-session",
@@ -506,7 +506,10 @@ class StateTests(unittest.TestCase):
         self.assertEqual(hooks["SessionEnd"][0]["hooks"][0]["timeout"], 3)
         for event in ("SessionStart", "SubagentStart", "SubagentStop", "PostToolUse"):
             self.assertEqual(hooks[event][0]["hooks"][0]["timeout"], 10)
-        self.assertEqual(hooks["PostToolUse"][0]["matcher"], "send_message|followup_task")
+        self.assertEqual(
+            hooks["PostToolUse"][0]["matcher"],
+            "^(?:collaboration)?(?:send_message|followup_task)$",
+        )
 
     def test_data_dir_fallback_is_user_scoped(self) -> None:
         with (

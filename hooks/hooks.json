@@ -51,7 +51,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "send_message|followup_task",
+        "matcher": "^(?:collaboration)?(?:send_message|followup_task)$",
         "hooks": [
           {
             "type": "command",

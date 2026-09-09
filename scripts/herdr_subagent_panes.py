@@ -27,6 +27,12 @@ DEFAULT_POLL_INTERVAL = 0.2
 DEFAULT_CLOSE_GRACE = 0.35
 MAX_RENDERED_TEXT = 2_000
 RECENT_INTERACTION_RECORDS = 200
+INTERACTION_TOOL_NAMES = {
+    "send_message",
+    "followup_task",
+    "collaborationsend_message",
+    "collaborationfollowup_task",
+}
 SplitDirection = Literal["right", "down"]
 
 
@@ -403,7 +409,7 @@ def _handle_stop(payload: Mapping[str, Any], env: Mapping[str, str], client: Her
 
 def _interacted_agent(payload: Mapping[str, Any]) -> tuple[str, str] | None:
     """Resolve the exact non-root agent from a completed collaboration tool call."""
-    if payload.get("tool_name") not in {"send_message", "followup_task"}:
+    if payload.get("tool_name") not in INTERACTION_TOOL_NAMES:
         return None
     transcript_path = payload.get("transcript_path")
     tool_use_id = payload.get("tool_use_id")
