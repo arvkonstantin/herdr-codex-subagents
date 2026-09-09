@@ -29,6 +29,5 @@ an explicitly named disposable Herdr session.
 2. Keep coverage at or above 90%.
 3. Update the README and changelog when user-visible behavior changes.
 4. Use focused commits with clear imperative subjects.
-5. Complete the pull request checklist.
 
 By contributing, you agree that your contribution is licensed under the MIT License.

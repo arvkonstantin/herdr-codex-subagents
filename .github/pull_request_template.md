@@ -1,16 +1,7 @@
-## Summary
+## What changed
 
-Describe the user-visible outcome and why it is needed.
+Describe the change and why it is needed.
 
-## Verification
+## How was it tested?
 
-- [ ] `uv run ruff check .`
-- [ ] `uv run pytest --cov --cov-report=term-missing`
-- [ ] Tests do not touch a live Herdr session
-- [ ] Parent panes cannot be closed by the change
-- [ ] Non-Herdr environments remain strict no-ops
-- [ ] Documentation and changelog are updated when needed
-
-## Screenshots or traces
-
-Include sanitized evidence when it helps. Never attach private rollout content.
+List the checks you ran or explain why testing was not needed.
