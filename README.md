@@ -40,6 +40,10 @@
   <img alt="Downloads" src="https://img.shields.io/github/downloads/arvkonstantin/herdr-codex-subagents/total">
 </p>
 
+<p align="center">
+  <img src="docs/assets/herdr-subagents-demo.png" alt="Herdr showing three Codex subagents working in parallel">
+</p>
+
 ## Installation
 
 Add this repository as a Codex plugin marketplace, then install the plugin:
