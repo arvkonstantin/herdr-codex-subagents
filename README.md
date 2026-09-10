@@ -1,6 +1,7 @@
 <div align="center">
   <img src="docs/assets/logo.svg" width="96" alt="Herdr Codex Subagents logo">
   <h1>Herdr Codex Subagents</h1>
+[![HOL Guard](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fplugin%3Fslug%3Darvkonstantin%252Fherdr-codex-subagents%26metric%3Dtrust)](https://hol.org/go/guard/kostya-74-74?dest=%2Fguard%2Fbilling%3Fpromo%3DGUARD20-KOSTYA-74-74%23upgrade&link_id=daa5b532-a37c-4e0a-9ac0-bd9babe9f3d0&utm_source=insights_share&utm_medium=affiliate_cta&utm_campaign=share20)
   <p>Open a read-only Herdr pane for every Codex subagent and close it when the work is done.</p>
 </div>
 
