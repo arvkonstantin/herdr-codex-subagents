@@ -21,6 +21,10 @@ SPEC.loader.exec_module(plugin)
 class FakeHerdr:
     def __init__(self, root: str = "w7:p1") -> None:
         self.live = {root}
+        self.panes = {
+            root: {"pane_id": root, "cwd": str(ROOT), "agent": "codex", "agent_status": "working"}
+        }
+        self.focused: dict | None = None
         self.split_calls: list[tuple[str, str, str]] = []
         self.rename_calls: list[tuple[str, str]] = []
         self.run_calls: list[tuple[str, str]] = []
@@ -30,6 +34,14 @@ class FakeHerdr:
 
     def pane_exists(self, pane_id: str) -> bool:
         return pane_id in self.live
+
+    def pane_info(self, pane_id: str) -> dict | None:
+        return self.panes.get(pane_id) if pane_id in self.live else None
+
+    def focused_pane_in_cwd(self, cwd: str) -> dict | None:
+        if self.focused and plugin._same_directory(self.focused.get("cwd"), cwd):
+            return self.focused
+        return None
 
     def split(self, pane_id: str, cwd: str, direction: str) -> str:
         with self._mutex:
@@ -313,6 +325,35 @@ class HookLifecycleTests(unittest.TestCase):
 
     def test_missing_parent_pane_is_a_noop(self) -> None:
         self.herdr.live.clear()
+        self.handle("SubagentStart", "agent-1")
+        self.assertEqual(self.herdr.split_calls, [])
+
+    def test_resumed_session_uses_focused_project_pane_when_env_pane_is_stale(self) -> None:
+        self.herdr.panes["w7:p1"].update(cwd="/old/project", agent_status="done")
+        self.herdr.focused = {
+            "pane_id": "w0:p1",
+            "cwd": str(ROOT),
+            "agent": "codex",
+            "agent_status": "working",
+        }
+        self.herdr.live.add("w0:p1")
+
+        self.handle("SubagentStart", "agent-1")
+
+        self.assertEqual(self.herdr.split_calls, [("w0:p1", str(ROOT), "right")])
+        session = next(iter(self.state()["sessions"].values()))
+        self.assertEqual(session["root_pane_id"], "w0:p1")
+        self.handle("SessionEnd", "unused")
+        self.assertEqual(self.state()["sessions"], {})
+
+    def test_stale_env_does_not_split_unrelated_pane(self) -> None:
+        self.herdr.panes["w7:p1"].update(cwd="/old/project", agent_status="done")
+        self.herdr.focused = {"pane_id": "w0:p1", "cwd": "/another/project"}
+        self.handle("SubagentStart", "agent-1")
+        self.assertEqual(self.herdr.split_calls, [])
+
+    def test_done_pane_in_same_project_is_not_reused(self) -> None:
+        self.herdr.panes["w7:p1"]["agent_status"] = "done"
         self.handle("SubagentStart", "agent-1")
         self.assertEqual(self.herdr.split_calls, [])
 

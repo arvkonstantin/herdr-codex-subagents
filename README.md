@@ -72,13 +72,15 @@ The viewer renders assistant updates, shell commands, file changes, MCP calls, a
 The first viewer takes the right half. Further viewers split that half breadth-first, alternating
 down and right at each level. Concurrent hook processes serialize state changes with a file lock.
 `PostToolUse` resolves successful `send_message` and `followup_task` calls from the parent rollout,
-so reused agents get a fresh viewer without keeping idle panes open. Session hooks clean up tracked
-viewers after a session ends or before a parent pane is reused.
+so reused agents get a fresh viewer without keeping idle panes open. When a resumed session passes
+an old pane ID, the hook uses the focused Codex pane in the current project. Session hooks clean up
+tracked viewers after a session ends or before a parent pane is reused.
 
 ## Requirements
 
 - [Herdr](https://herdr.dev) with the `pane split`, `pane run`, and `pane close` commands.
-- Codex CLI with lifecycle hooks and native subagents. Tested with Codex CLI `0.153.4`.
+- Codex CLI with lifecycle hooks and native subagents. Tested with Codex CLI `0.160.1`
+  and Herdr `0.9.3`.
 - Python `3.10` or newer.
 - Linux or macOS.
 

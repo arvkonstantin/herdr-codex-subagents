@@ -74,6 +74,31 @@ class HerdrClient:
             return False
         return True
 
+    def pane_info(self, pane_id: str) -> dict[str, Any] | None:
+        try:
+            pane = _nested_get(self._call("pane", "get", pane_id), "result", "pane")
+        except (HerdrError, subprocess.SubprocessError):
+            return None
+        return pane if isinstance(pane, dict) else None
+
+    def focused_pane_in_cwd(self, cwd: str) -> dict[str, Any] | None:
+        try:
+            panes = _nested_get(self._call("pane", "list"), "result", "panes")
+        except (HerdrError, subprocess.SubprocessError):
+            return None
+        if not isinstance(panes, list):
+            return None
+        matches = [
+            pane
+            for pane in panes
+            if isinstance(pane, dict)
+            and pane.get("focused") is True
+            and pane.get("agent") == "codex"
+            and pane.get("agent_status") != "done"
+            and _same_directory(pane.get("cwd"), cwd)
+        ]
+        return matches[0] if len(matches) == 1 else None
+
     def split(self, pane_id: str, cwd: str, direction: SplitDirection) -> str:
         payload = self._call(
             "pane",
@@ -108,6 +133,34 @@ def _nested_get(value: Any, *keys: str) -> Any:
             return None
         current = current.get(key)
     return current
+
+
+def _same_directory(left: Any, right: Any) -> bool:
+    return (
+        isinstance(left, str)
+        and isinstance(right, str)
+        and bool(left)
+        and bool(right)
+        and Path(left).resolve() == Path(right).resolve()
+    )
+
+
+def _root_pane(
+    payload: Mapping[str, Any], env: Mapping[str, str], client: HerdrClient
+) -> str | None:
+    pane_id = env.get("HERDR_PANE_ID")
+    cwd = payload.get("cwd")
+    if not pane_id:
+        return None
+    pane = client.pane_info(pane_id)
+    if pane is not None and pane.get("agent_status") != "done":
+        return pane_id
+
+    # Resumed Codex sessions can carry an older pane ID into hook processes.
+    # A focused Codex pane in the hook's project is a safer anchor in that case.
+    focused = client.focused_pane_in_cwd(cwd) if isinstance(cwd, str) else None
+    candidate = focused.get("pane_id") if focused else None
+    return candidate if isinstance(candidate, str) and candidate else None
 
 
 def _data_dir(env: Mapping[str, str]) -> Path:
@@ -294,18 +347,15 @@ def _handle_start(
     agent_id = payload.get("agent_id")
     session_id = payload.get("session_id")
     agent_type = payload.get("agent_type")
-    root_pane_id = env.get("HERDR_PANE_ID")
-    workspace_id = env.get("HERDR_WORKSPACE_ID")
     cwd = payload.get("cwd")
-    if not all(
-        isinstance(value, str) and value
-        for value in (agent_id, session_id, agent_type, root_pane_id)
-    ):
+    if not all(isinstance(value, str) and value for value in (agent_id, session_id, agent_type)):
         return
     if not isinstance(cwd, str) or not Path(cwd).is_dir():
         cwd = os.getcwd()
-    if not client.pane_exists(root_pane_id):
+    root_pane_id = _root_pane({**payload, "cwd": cwd}, env, client)
+    if root_pane_id is None:
         return
+    workspace_id = root_pane_id.split(":", 1)[0]
 
     data_dir = _data_dir(env)
     with _locked_state(data_dir) as (state_path, state):
@@ -477,18 +527,21 @@ def _cleanup_sessions(
     stale_only: bool,
 ) -> None:
     session_id = payload.get("session_id")
-    root_pane_id = env.get("HERDR_PANE_ID")
-    if not isinstance(session_id, str) or not session_id or not root_pane_id:
+    if not isinstance(session_id, str) or not session_id:
+        return
+    root_pane_id = _root_pane(payload, env, client) if stale_only else None
+    if stale_only and root_pane_id is None:
         return
     data_dir = _data_dir(env)
     with _locked_state(data_dir) as (state_path, state):
         sessions = state.get("sessions", {})
         selected: list[str] = []
         for key, session in sessions.items():
-            if not isinstance(session, dict) or session.get("root_pane_id") != root_pane_id:
+            if not isinstance(session, dict):
                 continue
             same_session = session.get("session_id") == session_id
-            if (stale_only and not same_session) or (not stale_only and same_session):
+            stale_in_pane = stale_only and session.get("root_pane_id") == root_pane_id
+            if (stale_in_pane and not same_session) or (not stale_only and same_session):
                 selected.append(key)
 
         changed = False

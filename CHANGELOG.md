@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-07
+
+### Fixed
+
+- Find the focused Codex pane in the current project when a resumed session passes a stale
+  `HERDR_PANE_ID` to hooks, so subagent viewers appear beside the active session.
+- Close viewers by session ID even when the session's hook environment still names the old pane.
+
 ## [0.1.5] - 2026-09-09
 
 ### Fixed
@@ -62,7 +70,8 @@ All notable changes to this project are documented in this file. The format foll
 - Strict no-op behavior outside Herdr.
 - Python 3.10+ test matrix with branch coverage enforcement.
 
-[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/arvkonstantin/herdr-codex-subagents/compare/v0.1.2...v0.1.3
