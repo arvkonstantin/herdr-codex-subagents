@@ -45,6 +45,18 @@ Start a new Codex session inside Herdr. Open `/hooks`, review the five plugin ho
 
 For a local checkout, replace the GitHub repository in the first command with its absolute path.
 
+## Upgrade
+
+Refresh the Git marketplace and install the newest plugin version:
+
+```bash
+codex plugin marketplace upgrade herdr-codex-subagents
+codex plugin add herdr-codex-subagents@herdr-codex-subagents
+```
+
+Start a new Codex session to load the update. If `/hooks` asks you to review updated hooks,
+trust them before using subagent panes.
+
 ## What it does
 
 - Keeps the parent in the left half and tiles subagent viewers in the right half without moving focus.
