@@ -18,7 +18,7 @@ plugin = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(plugin)
 
 
-class FakeHerdr:
+class FakeHerdr(plugin.HerdrClient):
     def __init__(self, root: str = "w7:p1") -> None:
         self.live = {root}
         self.panes = {
@@ -421,6 +421,10 @@ class HookLifecycleTests(unittest.TestCase):
         (Path(self.temporary.name) / "state.json").write_text(json.dumps(data))
         self.handle("SubagentStop", "agent-1")
         self.assertEqual(self.herdr.close_calls, [])
+        data["sessions"]["broken"]["session_id"] = "parent-session"
+        (Path(self.temporary.name) / "state.json").write_text(json.dumps(data))
+        self.handle("SessionEnd", "unused")
+        self.assertEqual(self.herdr.close_calls, [])
 
     def test_session_end_closes_all_viewers_but_not_parent(self) -> None:
         self.handle("SubagentStart", "agent-1")
@@ -438,6 +442,111 @@ class HookLifecycleTests(unittest.TestCase):
         plugin.handle_hook(event, env=self.env, client=self.herdr, script_path=SCRIPT)
         self.assertEqual(self.herdr.close_calls, ["w7:p2"])
         self.assertEqual(self.state()["sessions"], {})
+
+
+class HerdrAppTests(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.data_dir = Path(temporary.name)
+        self.env = {
+            "HC_TERMINAL_ID": "t1",
+            "HERDR_APP_HOME": str(self.data_dir / "app"),
+            "HERDR_SUBAGENT_CLOSE_GRACE": "0.75",
+            "PLUGIN_DATA": str(self.data_dir),
+            "PATH": "/bin",
+        }
+        self.terminals = [
+            {"terminal": "t1", "pane": "parent"},
+            {"terminal": "t2", "pane": "other"},
+        ]
+        self.focused = "other"
+        self.splits: list[dict] = []
+        self.closed: list[str] = []
+        self.split_selects_viewer = True
+        self.split_reply = {"pane": "viewer", "terminal": "t3"}
+        launcher_patch = mock.patch.object(plugin.shutil, "which", return_value="/bin/herdr-app")
+        self.launcher = launcher_patch.start()
+        self.addCleanup(launcher_patch.stop)
+        run_patch = mock.patch.object(plugin.subprocess, "run", side_effect=self._run_cli)
+        run_patch.start()
+        self.addCleanup(run_patch.stop)
+
+    def _run_cli(self, args: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+        executable, command, *rest = args
+        self.assertEqual(executable, "/bin/herdr-app")
+        if command == "ls":
+            response = {"spaces": [{"tabs": [{"terminals": self.terminals}]}]}
+        elif command == "status":
+            response = {"focused_pane": self.focused}
+        else:
+            action, raw = rest
+            arguments = json.loads(raw)
+            pane = arguments["pane"]
+            if action == "pane.split":
+                self.splits.append(arguments)
+                response = self.split_reply
+                if "pane" in response:
+                    self.terminals.append(
+                        {"terminal": response["terminal"], "pane": response["pane"]}
+                    )
+                    if self.split_selects_viewer:
+                        self.focused = response["pane"]
+            elif action == "pane.focus":
+                self.focused = pane
+                response = {"ok": True}
+            else:
+                self.assertEqual(action, "pane.close")
+                self.closed.append(pane)
+                self.terminals = [
+                    terminal for terminal in self.terminals if terminal["pane"] != pane
+                ]
+                response = {"ok": True}
+        return subprocess.CompletedProcess(args, 0, json.dumps(response), "")
+
+    def handle(self, event: str) -> None:
+        plugin.handle_hook(payload(event, "agent-1"), env=self.env, script_path=SCRIPT)
+
+    def test_opens_beside_calling_terminal_restores_focus_and_cleans_up(self) -> None:
+        self.handle("SessionStart")
+        self.handle("SubagentStart")
+        self.handle("SubagentStart")
+
+        (split,) = self.splits
+        self.assertEqual((split["pane"], split["direction"]), ("parent", "right"))
+        self.assertIn(str(SCRIPT), split["argv"])
+        self.assertIn("--desktop", split["argv"])
+        self.assertIn("--close-grace=0.75", split["argv"])
+        self.assertEqual(self.focused, "other")
+        self.launcher.assert_called_with("herdr-app", path="/bin")
+        self.assertFalse((self.data_dir / "state.json").exists())
+        self.assertEqual(len(list(self.data_dir.glob("desktop/*/state.json"))), 1)
+
+        self.handle("SubagentStop")
+        self.assertEqual(self.closed, ["viewer"])
+        self.assertEqual([terminal["pane"] for terminal in self.terminals], ["parent", "other"])
+
+    def test_does_not_select_a_pane_when_split_stays_in_background(self) -> None:
+        self.split_selects_viewer = False
+        self.handle("SubagentStart")
+        self.assertEqual(self.focused, "other")
+        self.handle("SessionEnd")
+        self.assertEqual(self.closed, ["viewer"])
+
+    def test_missing_terminal_does_not_split_focused_pane(self) -> None:
+        self.env["HC_TERMINAL_ID"] = "t9"
+        self.handle("SubagentStart")
+        self.assertEqual(self.splits, [])
+
+    def test_missing_app_executable_does_not_open_viewer(self) -> None:
+        self.launcher.return_value = None
+        self.handle("SubagentStart")
+        self.assertEqual(self.splits, [])
+
+    def test_split_requires_pane_id(self) -> None:
+        self.split_reply = {"ok": True}
+        with self.assertRaisesRegex(plugin.HerdrError, "did not include a pane id"):
+            self.handle("SubagentStart")
 
 
 class HerdrClientTests(unittest.TestCase):

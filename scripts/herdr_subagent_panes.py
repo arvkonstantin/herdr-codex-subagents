@@ -40,10 +40,8 @@ class HerdrError(RuntimeError):
     """Raised when a Herdr CLI operation fails."""
 
 
-class HerdrClient:
-    """Small, JSON-aware wrapper around the Herdr pane CLI."""
-
-    def __init__(self, executable: str = "herdr") -> None:
+class _HerdrCLI:
+    def __init__(self, executable: str) -> None:
         self.executable = executable
 
     def _call(self, *args: str, timeout: float = 5.0, allow_empty: bool = False) -> dict[str, Any]:
@@ -66,6 +64,26 @@ class HerdrClient:
         if not isinstance(payload, dict):
             raise HerdrError("Herdr returned an unexpected response")
         return payload
+
+
+class HerdrClient(_HerdrCLI):
+    """Manage panes in the terminal edition of Herdr."""
+
+    def __init__(self, executable: str = "herdr") -> None:
+        super().__init__(executable)
+
+    def root_pane(self, payload: Mapping[str, Any], env: Mapping[str, str]) -> str | None:
+        pane_id = env.get("HERDR_PANE_ID")
+        if not pane_id:
+            return None
+        pane = self.pane_info(pane_id)
+        if pane is not None and pane.get("agent_status") != "done":
+            return pane_id
+        # Resumed Codex sessions can carry an older pane ID into hook processes.
+        cwd = payload.get("cwd")
+        focused = self.focused_pane_in_cwd(cwd) if isinstance(cwd, str) else None
+        candidate = focused.get("pane_id") if focused else None
+        return candidate if isinstance(candidate, str) and candidate else None
 
     def pane_exists(self, pane_id: str) -> bool:
         try:
@@ -125,6 +143,64 @@ class HerdrClient:
     def close(self, pane_id: str) -> None:
         self._call("pane", "close", pane_id)
 
+    def open_viewer(
+        self, anchor: str, cwd: str, direction: SplitDirection, label: str, argv: list[str]
+    ) -> str:
+        pane_id = self.split(anchor, cwd, direction)
+        with contextlib.suppress(HerdrError, subprocess.SubprocessError):
+            self.rename(pane_id, label)
+        try:
+            self.run(pane_id, shlex.join(argv))
+        except (HerdrError, subprocess.SubprocessError):
+            with contextlib.suppress(HerdrError, subprocess.SubprocessError):
+                self.close(pane_id)
+            raise
+        return pane_id
+
+
+class HerdrAppClient(_HerdrCLI):
+    """Manage panes in the desktop app, whose terminals have separate core IDs."""
+
+    def _terminals(self) -> Iterator[dict[str, Any]]:
+        for space in self._call("ls")["spaces"]:
+            for tab in space["tabs"]:
+                yield from tab["terminals"]
+
+    def root_pane(self, payload: Mapping[str, Any], env: Mapping[str, str]) -> str | None:
+        terminal_id = env["HC_TERMINAL_ID"]
+        for terminal in self._terminals():
+            if terminal["terminal"] == terminal_id:
+                return terminal["pane"]
+        return None
+
+    def pane_exists(self, pane_id: str) -> bool:
+        return any(terminal["pane"] == pane_id for terminal in self._terminals())
+
+    def open_viewer(
+        self, anchor: str, cwd: str, direction: SplitDirection, label: str, argv: list[str]
+    ) -> str:
+        previous = self._call("status").get("focused_pane")
+        response = self._call(
+            "do", "pane.split", json.dumps({"pane": anchor, "direction": direction, "argv": argv})
+        )
+        pane_id = response.get("pane")
+        if not isinstance(pane_id, str) or not pane_id:
+            raise HerdrError("Herdr Desktop split response did not include a pane id")
+
+        # The desktop split selects the viewer in its tab. Restore the previous
+        # pane only if the viewer actually took focus in the current window.
+        if isinstance(previous, str) and previous:
+            with contextlib.suppress(HerdrError, subprocess.SubprocessError):
+                if self._call("status").get("focused_pane") == pane_id:
+                    self._call("do", "pane.focus", json.dumps({"pane": previous}))
+        return pane_id
+
+    def close(self, pane_id: str) -> None:
+        self._call("do", "pane.close", json.dumps({"pane": pane_id}))
+
+
+PaneClient = HerdrClient | HerdrAppClient
+
 
 def _nested_get(value: Any, *keys: str) -> Any:
     current = value
@@ -145,29 +221,21 @@ def _same_directory(left: Any, right: Any) -> bool:
     )
 
 
-def _root_pane(
-    payload: Mapping[str, Any], env: Mapping[str, str], client: HerdrClient
-) -> str | None:
-    pane_id = env.get("HERDR_PANE_ID")
-    cwd = payload.get("cwd")
-    if not pane_id:
-        return None
-    pane = client.pane_info(pane_id)
-    if pane is not None and pane.get("agent_status") != "done":
-        return pane_id
-
-    # Resumed Codex sessions can carry an older pane ID into hook processes.
-    # A focused Codex pane in the hook's project is a safer anchor in that case.
-    focused = client.focused_pane_in_cwd(cwd) if isinstance(cwd, str) else None
-    candidate = focused.get("pane_id") if focused else None
-    return candidate if isinstance(candidate, str) and candidate else None
-
-
 def _data_dir(env: Mapping[str, str]) -> Path:
     configured = env.get("PLUGIN_DATA") or env.get("CLAUDE_PLUGIN_DATA")
     if configured:
         return Path(configured).expanduser()
     return Path(tempfile.gettempdir()) / f"herdr-codex-subagents-{os.getuid()}"
+
+
+def _state_dir(env: Mapping[str, str], client: PaneClient) -> Path:
+    data_dir = _data_dir(env)
+    if isinstance(client, HerdrAppClient):
+        config_home = Path(env.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+        app_home = Path(env.get("HERDR_APP_HOME") or config_home / "herdr-app").resolve()
+        app_id = hashlib.sha256(os.fsencode(app_home)).hexdigest()[:24]
+        return data_dir / "desktop" / app_id
+    return data_dir
 
 
 def _default_state() -> dict[str, Any]:
@@ -224,7 +292,7 @@ def _log(data_dir: Path, message: str) -> None:
         pass
 
 
-def _prune_session(session: dict[str, Any], client: HerdrClient) -> None:
+def _prune_session(session: dict[str, Any], client: PaneClient) -> None:
     agents = session.get("agents")
     if not isinstance(agents, dict):
         session["agents"] = {}
@@ -312,15 +380,15 @@ def _find_agent(
     return None
 
 
-def _viewer_command(
+def _viewer_arguments(
     script_path: Path,
     agent_id: str,
     agent_type: str,
     session_id: str,
     parent_pane_id: str,
     codex_home: Path,
-) -> str:
-    arguments = [
+) -> list[str]:
+    return [
         sys.executable,
         str(script_path),
         "view",
@@ -335,13 +403,12 @@ def _viewer_command(
         "--codex-home",
         str(codex_home),
     ]
-    return " ".join(shlex.quote(argument) for argument in arguments)
 
 
 def _handle_start(
     payload: Mapping[str, Any],
     env: Mapping[str, str],
-    client: HerdrClient,
+    client: PaneClient,
     script_path: Path,
 ) -> None:
     agent_id = payload.get("agent_id")
@@ -352,13 +419,10 @@ def _handle_start(
         return
     if not isinstance(cwd, str) or not Path(cwd).is_dir():
         cwd = os.getcwd()
-    root_pane_id = _root_pane({**payload, "cwd": cwd}, env, client)
+    root_pane_id = client.root_pane({**payload, "cwd": cwd}, env)
     if root_pane_id is None:
         return
-    workspace_id = root_pane_id.split(":", 1)[0]
-
-    data_dir = _data_dir(env)
-    with _locked_state(data_dir) as (state_path, state):
+    with _locked_state(_state_dir(env, client)) as (state_path, state):
         existing = _find_agent(state, agent_id)
         if existing is not None and client.pane_exists(existing[2]["pane_id"]):
             return
@@ -370,7 +434,6 @@ def _handle_start(
             {
                 "session_id": session_id,
                 "root_pane_id": root_pane_id,
-                "workspace_id": workspace_id,
                 "agents": {},
             },
         )
@@ -390,13 +453,9 @@ def _handle_start(
             anchor_path = anchor_entry["layout_path"]
             direction = "down" if len(anchor_path) % 2 == 0 else "right"
 
-        pane_id = client.split(anchor, cwd, direction)
         label = f"subagent: {agent_type}"[:80]
-        with contextlib.suppress(HerdrError, subprocess.SubprocessError):
-            client.rename(pane_id, label)
-
         codex_home = Path(env.get("CODEX_HOME") or Path.home() / ".codex").expanduser()
-        command = _viewer_command(
+        argv = _viewer_arguments(
             script_path=script_path,
             agent_id=agent_id,
             agent_type=agent_type,
@@ -404,12 +463,11 @@ def _handle_start(
             parent_pane_id=root_pane_id,
             codex_home=codex_home,
         )
-        try:
-            client.run(pane_id, command)
-        except (HerdrError, subprocess.SubprocessError):
-            with contextlib.suppress(HerdrError, subprocess.SubprocessError):
-                client.close(pane_id)
-            raise
+        if isinstance(client, HerdrAppClient):
+            argv.append("--desktop")
+            if (grace := env.get("HERDR_SUBAGENT_CLOSE_GRACE")) is not None:
+                argv.append(f"--close-grace={grace}")
+        pane_id = client.open_viewer(anchor, cwd, direction, label, argv)
 
         state["next_sequence"] += 1
         if anchor_entry is not None:
@@ -423,17 +481,17 @@ def _handle_start(
         }
         _save_state(state_path, state)
         _log(
-            data_dir,
+            _data_dir(env),
             f"opened agent={agent_id} pane={pane_id} anchor={anchor} direction={direction}",
         )
 
 
-def _handle_stop(payload: Mapping[str, Any], env: Mapping[str, str], client: HerdrClient) -> None:
+def _handle_stop(payload: Mapping[str, Any], env: Mapping[str, str], client: PaneClient) -> None:
     agent_id = payload.get("agent_id")
     if not isinstance(agent_id, str) or not agent_id:
         return
     data_dir = _data_dir(env)
-    with _locked_state(data_dir) as (state_path, state):
+    with _locked_state(_state_dir(env, client)) as (state_path, state):
         found = _find_agent(state, agent_id)
         if found is None:
             return
@@ -499,7 +557,7 @@ def _interacted_agent(payload: Mapping[str, Any]) -> tuple[str, str] | None:
 def _handle_interaction(
     payload: Mapping[str, Any],
     env: Mapping[str, str],
-    client: HerdrClient,
+    client: PaneClient,
     script_path: Path,
 ) -> None:
     agent = _interacted_agent(payload)
@@ -522,18 +580,18 @@ def _handle_interaction(
 def _cleanup_sessions(
     payload: Mapping[str, Any],
     env: Mapping[str, str],
-    client: HerdrClient,
+    client: PaneClient,
     *,
     stale_only: bool,
 ) -> None:
     session_id = payload.get("session_id")
     if not isinstance(session_id, str) or not session_id:
         return
-    root_pane_id = _root_pane(payload, env, client) if stale_only else None
+    root_pane_id = client.root_pane(payload, env) if stale_only else None
     if stale_only and root_pane_id is None:
         return
     data_dir = _data_dir(env)
-    with _locked_state(data_dir) as (state_path, state):
+    with _locked_state(_state_dir(env, client)) as (state_path, state):
         sessions = state.get("sessions", {})
         selected: list[str] = []
         for key, session in sessions.items():
@@ -549,7 +607,7 @@ def _cleanup_sessions(
             session = sessions[key]
             for entry in session.get("agents", {}).values():
                 pane_id = entry.get("pane_id") if isinstance(entry, dict) else None
-                if not isinstance(pane_id, str) or pane_id == root_pane_id:
+                if not isinstance(pane_id, str) or pane_id == session.get("root_pane_id"):
                     continue
                 if client.pane_exists(pane_id):
                     with contextlib.suppress(HerdrError, subprocess.SubprocessError):
@@ -564,28 +622,34 @@ def _cleanup_sessions(
 def handle_hook(
     payload: Mapping[str, Any],
     env: Mapping[str, str] | None = None,
-    client: HerdrClient | None = None,
+    client: PaneClient | None = None,
     script_path: Path | None = None,
 ) -> None:
     """Handle one Codex hook payload without affecting non-Herdr environments."""
     active_env = os.environ if env is None else env
-    if active_env.get("HERDR_ENV") != "1" or not active_env.get("HERDR_PANE_ID"):
+    if active_env.get("HERDR_ENV") == "1" and active_env.get("HERDR_PANE_ID"):
+        binary, client_type = "herdr", HerdrClient
+    elif active_env.get("HC_TERMINAL_ID"):
+        binary, client_type = "herdr-app", HerdrAppClient
+    else:
         return
-    if shutil.which("herdr", path=active_env.get("PATH")) is None and client is None:
-        return
-    active_client = client or HerdrClient()
+    if client is None:
+        executable = shutil.which(binary, path=active_env.get("PATH"))
+        if executable is None:
+            return
+        client = client_type(executable)
     active_script = (script_path or Path(__file__)).resolve()
     event_name = payload.get("hook_event_name")
     if event_name == "SessionStart":
-        _cleanup_sessions(payload, active_env, active_client, stale_only=True)
+        _cleanup_sessions(payload, active_env, client, stale_only=True)
     elif event_name == "SessionEnd":
-        _cleanup_sessions(payload, active_env, active_client, stale_only=False)
+        _cleanup_sessions(payload, active_env, client, stale_only=False)
     elif event_name == "SubagentStart":
-        _handle_start(payload, active_env, active_client, active_script)
+        _handle_start(payload, active_env, client, active_script)
     elif event_name == "SubagentStop":
-        _handle_stop(payload, active_env, active_client)
+        _handle_stop(payload, active_env, client)
     elif event_name == "PostToolUse":
-        _handle_interaction(payload, active_env, active_client, active_script)
+        _handle_interaction(payload, active_env, client, active_script)
 
 
 def _find_transcript(codex_home: Path, agent_id: str) -> Path | None:
@@ -713,6 +777,9 @@ def view_subagent(
     parent_pane_id: str,
     codex_home: Path,
     poll_interval: float = DEFAULT_POLL_INTERVAL,
+    *,
+    desktop: bool = False,
+    close_grace: float | None = None,
 ) -> None:
     """Follow a subagent rollout and render a compact read-only activity stream."""
     del session_id  # Reserved for future app-server based lookup.
@@ -753,8 +820,13 @@ def view_subagent(
             for rendered in lines:
                 print(rendered, flush=True)
             if terminal:
-                time.sleep(float(os.environ.get("HERDR_SUBAGENT_CLOSE_GRACE", DEFAULT_CLOSE_GRACE)))
-                _close_own_pane(parent_pane_id)
+                if close_grace is None:
+                    close_grace = float(
+                        os.environ.get("HERDR_SUBAGENT_CLOSE_GRACE", DEFAULT_CLOSE_GRACE)
+                    )
+                time.sleep(close_grace)
+                if not desktop:
+                    _close_own_pane(parent_pane_id)
                 return
 
 
@@ -780,6 +852,8 @@ def _parse_args() -> argparse.Namespace:
     viewer.add_argument("--session-id", required=True)
     viewer.add_argument("--parent-pane-id", required=True)
     viewer.add_argument("--codex-home", type=Path, required=True)
+    viewer.add_argument("--desktop", action="store_true")
+    viewer.add_argument("--close-grace", type=float)
     return parser.parse_args()
 
 
@@ -793,6 +867,8 @@ def main() -> int:
         session_id=args.session_id,
         parent_pane_id=args.parent_pane_id,
         codex_home=args.codex_home,
+        desktop=args.desktop,
+        close_grace=args.close_grace,
     )
     return 0
 
